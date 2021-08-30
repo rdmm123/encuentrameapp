@@ -113,9 +113,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
     RawDatagramSocket.bind(InternetAddress.anyIPv4, 0)
         .then((RawDatagramSocket socket) {
-      print('Sending to {address}:${int.parse(port)}');
-      socket.send(utf8.encode(msg + "," + datetime), InternetAddress(address),
-          int.parse(port));
+      InternetAddress.lookup(address).then((value) {
+        print('Sending to ${address}:${int.parse(port)}');
+        socket.send(utf8.encode(msg + "," + datetime), value[0],
+            int.parse(port));
+      });
     });
   }
 
