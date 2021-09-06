@@ -45,6 +45,8 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   String _locationMessage = "";
+  String latitude = "";
+  String longitude = "";
   var position, socket, address, port;
   final buttontext = new TextStyle(fontSize: 20.0);
   final coordtext = new TextStyle(fontSize: 22.0);
@@ -70,10 +72,13 @@ class _HomeScreenState extends State<HomeScreen> {
     // setState to update our non-existent appearance.
     await Permission.locationWhenInUse.request();
     position = await Geolocator.getCurrentPosition(
+        forceAndroidLocationManager: true,
         desiredAccuracy: LocationAccuracy.high);
+    latitude = position.latitude.toStringAsFixed(8);
+    longitude = position.longitude.toStringAsFixed(8);
     setState(() {
       _locationMessage =
-          "Latitud: ${position.latitude}\nLongitud: ${position.longitude}";
+          "Latitud: " + latitude + "\nLongitud: " + longitude;
     });
   }
 
@@ -95,10 +100,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _getCurrentLocation() async {
     position = await Geolocator.getCurrentPosition(
+        forceAndroidLocationManager: true,
         desiredAccuracy: LocationAccuracy.high);
+    latitude = position.latitude.toStringAsFixed(8);
+    longitude = position.longitude.toStringAsFixed(8);
     setState(() {
       _locationMessage =
-          "Latitud: ${position.latitude}\nLongitud: ${position.longitude}";
+          "Latitud: " + latitude + "\nLongitud: " + longitude;
     });
     _sendLocation();
   }
@@ -107,10 +115,11 @@ class _HomeScreenState extends State<HomeScreen> {
     // await _getPermission();
     print("Mensaje enviado");
     print(position);
-    String msg = "${position.latitude},${position.longitude}";
+    
+    String msg = latitude + "," + longitude;
 
-    String datetime = DateFormat("yyyy-MM-dd,HH:mm:ss").format(DateTime.now());
-
+    String datetime = DateFormat("yyyy-MM-dd,HH:mm:ss").format(position.timestamp.toLocal());
+    
     RawDatagramSocket.bind(InternetAddress.anyIPv4, 0)
         .then((RawDatagramSocket socket) {
       InternetAddress.lookup(address).then((value) {
@@ -119,6 +128,13 @@ class _HomeScreenState extends State<HomeScreen> {
             int.parse(port));
       });
     });
+
+    // RawDatagramSocket.bind(InternetAddress.anyIPv4, 0)
+    //     .then((RawDatagramSocket socket) {
+    //   print('Sending to {address}:${int.parse(port)}');
+    //   socket.send(utf8.encode(msg + "," + datetime), InternetAddress(address),
+    //       int.parse(port));
+    // });
   }
 
   void _pushFavorites() {
@@ -187,7 +203,7 @@ class _HomeScreenState extends State<HomeScreen> {
             _sending = true;
           });
 
-          _locationTimer = Timer.periodic(Duration(seconds: 3), (Timer t) {
+          _locationTimer = Timer.periodic(Duration(seconds: 4), (Timer t) {
             _getCurrentLocation();
           });
 
