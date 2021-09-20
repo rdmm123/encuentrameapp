@@ -56,6 +56,11 @@ class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController ipController = TextEditingController();
   final TextEditingController portController = TextEditingController();
   late Timer _locationTimer;
+  StreamSubscription<Position>? _positionStreamSubscription;
+  final GeolocatorPlatform _geolocatorPlatform = GeolocatorPlatform.instance;
+  Stream<Position>? positionStream;
+
+
 
   @override
   void initState() {
@@ -72,7 +77,7 @@ class _HomeScreenState extends State<HomeScreen> {
     // setState to update our non-existent appearance.
     await Permission.locationWhenInUse.request();
     position = await Geolocator.getCurrentPosition(
-        forceAndroidLocationManager: true,
+        forceAndroidLocationManager: false,
         desiredAccuracy: LocationAccuracy.high);
     latitude = position.latitude.toStringAsFixed(8);
     longitude = position.longitude.toStringAsFixed(8);
@@ -98,10 +103,8 @@ class _HomeScreenState extends State<HomeScreen> {
     print('saved favorites');
   }
 
-  void _getCurrentLocation() async {
-    position = await Geolocator.getCurrentPosition(
-        forceAndroidLocationManager: true,
-        desiredAccuracy: LocationAccuracy.high);
+  void _updateCurrentLocation(Position newPosition) async {
+    position = newPosition;
     latitude = position.latitude.toStringAsFixed(8);
     longitude = position.longitude.toStringAsFixed(8);
     setState(() {
@@ -110,7 +113,6 @@ class _HomeScreenState extends State<HomeScreen> {
     });
     _sendLocation();
   }
-
   void _sendLocation() {
     // await _getPermission();
     print("Mensaje enviado");
@@ -202,14 +204,28 @@ class _HomeScreenState extends State<HomeScreen> {
           setState(() {
             _sending = true;
           });
-
-          _locationTimer = Timer.periodic(Duration(seconds: 4), (Timer t) {
-            _getCurrentLocation();
-          });
-
+          if (positionStream == null) {
+            final positionStream = _geolocatorPlatform.getPositionStream(
+                distanceFilter: 50,
+                timeInterval: 4
+            );
+            _positionStreamSubscription = positionStream.handleError((error) {
+              _positionStreamSubscription?.cancel();
+              _positionStreamSubscription = null;
+            }).listen((Position newPosition) =>
+                _updateCurrentLocation(newPosition));
+            //_locationTimer = Timer.periodic(Duration(seconds: 4), (Timer t) {
+            //_getCurrentLocation();
+            //});
+          }
+          else {
+            setState(() {
+              _positionStreamSubscription!.resume();
+            });
+          }
           
         Fluttertoast.showToast(
-          msg: "Envío de ubicación inciado.",
+          msg: "Envío de ubicación iniciado.",
           toastLength: Toast.LENGTH_SHORT,
           gravity: ToastGravity.BOTTOM,
           timeInSecForIosWeb: 1,
@@ -230,7 +246,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return ElevatedButton(
       onPressed: () {
         setState(() {
-          _locationTimer.cancel();
+          _positionStreamSubscription!.pause();
             _sending = false;
           });
       },
