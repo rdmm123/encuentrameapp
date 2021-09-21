@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:socket_io_client/socket_io_client.dart';
@@ -9,6 +8,8 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:intl/intl.dart';
 import 'dart:async';
+import 'package:location/location.dart';
+
 
 void main() {
   runApp(MyApp());
@@ -47,7 +48,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String _locationMessage = "";
   String latitude = "";
   String longitude = "";
-  var position, socket, address, port;
+  var socket, address, port;
   final buttontext = new TextStyle(fontSize: 20.0);
   final coordtext = new TextStyle(fontSize: 22.0);
   bool _sending = false;
@@ -55,10 +56,10 @@ class _HomeScreenState extends State<HomeScreen> {
   var favorites = <String>{};
   final TextEditingController ipController = TextEditingController();
   final TextEditingController portController = TextEditingController();
-  late Timer _locationTimer;
-  StreamSubscription<Position>? _positionStreamSubscription;
-  final GeolocatorPlatform _geolocatorPlatform = GeolocatorPlatform.instance;
-  Stream<Position>? positionStream;
+  Location locationClass = new Location();
+  LocationData? position;
+  Stream<LocationData>? positionStream;
+  StreamSubscription<LocationData>? _positionStreamSubscription;
 
 
 
@@ -75,16 +76,16 @@ class _HomeScreenState extends State<HomeScreen> {
     // If the widget was removed from the tree while the asynchronous platform
     // message was in flight, we want to discard the reply rather than calling
     // setState to update our non-existent appearance.
-    await Permission.locationWhenInUse.request();
-    position = await Geolocator.getCurrentPosition(
-        forceAndroidLocationManager: false,
-        desiredAccuracy: LocationAccuracy.high);
-    latitude = position.latitude.toStringAsFixed(8);
-    longitude = position.longitude.toStringAsFixed(8);
+    await locationClass.requestPermission();
+    position = await locationClass.getLocation();
+    print(position);
+    latitude = position!.latitude!.toStringAsFixed(8);
+    longitude = position!.longitude!.toStringAsFixed(8);
     setState(() {
       _locationMessage =
           "Latitud: " + latitude + "\nLongitud: " + longitude;
     });
+    locationClass.changeSettings(interval: 8000, distanceFilter: 15);
   }
 
   _read() async {
@@ -103,10 +104,10 @@ class _HomeScreenState extends State<HomeScreen> {
     print('saved favorites');
   }
 
-  void _updateCurrentLocation(Position newPosition) async {
+  void _updateCurrentLocation(LocationData newPosition) async {
     position = newPosition;
-    latitude = position.latitude.toStringAsFixed(8);
-    longitude = position.longitude.toStringAsFixed(8);
+    latitude = position!.latitude!.toStringAsFixed(8);
+    longitude = position!.longitude!.toStringAsFixed(8);
     setState(() {
       _locationMessage =
           "Latitud: " + latitude + "\nLongitud: " + longitude;
@@ -120,7 +121,7 @@ class _HomeScreenState extends State<HomeScreen> {
     
     String msg = latitude + "," + longitude;
 
-    String datetime = DateFormat("yyyy-MM-dd,HH:mm:ss").format(position.timestamp.toLocal());
+    String datetime = DateFormat("yyyy-MM-dd,HH:mm:ss").format(DateTime.fromMillisecondsSinceEpoch(position!.time!.toInt()).toLocal());
     
     RawDatagramSocket.bind(InternetAddress.anyIPv4, 0)
         .then((RawDatagramSocket socket) {
@@ -205,18 +206,10 @@ class _HomeScreenState extends State<HomeScreen> {
             _sending = true;
           });
           if (positionStream == null) {
-            final positionStream = _geolocatorPlatform.getPositionStream(
-                distanceFilter: 50,
-                timeInterval: 4
-            );
-            _positionStreamSubscription = positionStream.handleError((error) {
-              _positionStreamSubscription?.cancel();
-              _positionStreamSubscription = null;
-            }).listen((Position newPosition) =>
+            final positionStream = locationClass.onLocationChanged;
+            print(positionStream);
+            _positionStreamSubscription = positionStream.listen((LocationData newPosition) =>
                 _updateCurrentLocation(newPosition));
-            //_locationTimer = Timer.periodic(Duration(seconds: 4), (Timer t) {
-            //_getCurrentLocation();
-            //});
           }
           else {
             setState(() {
