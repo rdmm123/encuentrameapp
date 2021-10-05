@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:fluttertoast/fluttertoast.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'package:socket_io_client/socket_io_client.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io';
 import 'dart:convert';
 import 'package:intl/intl.dart';
 import 'dart:async';
-import 'package:location/location.dart';
+// import 'package:location/location.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 
 
 void main() {
@@ -56,19 +56,18 @@ class _HomeScreenState extends State<HomeScreen> {
   var favorites = <String>{};
   final TextEditingController ipController = TextEditingController();
   final TextEditingController portController = TextEditingController();
-  Location locationClass = new Location();
-  LocationData? position;
-  Stream<LocationData>? positionStream;
-  StreamSubscription<LocationData>? _positionStreamSubscription;
-
-
+  Position? position;
+  Stream<Position>? positionStream;
+  StreamSubscription<Position>? _positionStreamSubscription;
+  DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
+  AndroidDeviceInfo? androidInfo;
+  String deviceBrand = "";
 
   @override
   void initState() {
     super.initState();
     initPlatformState();
     _read();
-    // connectToServer();
   }
 
   Future<void> initPlatformState() async {
@@ -76,16 +75,23 @@ class _HomeScreenState extends State<HomeScreen> {
     // If the widget was removed from the tree while the asynchronous platform
     // message was in flight, we want to discard the reply rather than calling
     // setState to update our non-existent appearance.
-    await locationClass.requestPermission();
-    position = await locationClass.getLocation();
+    androidInfo = await deviceInfo.androidInfo;
+    deviceBrand = androidInfo!.brand!.toLowerCase();
+    await Geolocator.requestPermission();
+    // await locationClass.requestPermission();
+    position = await Geolocator.getCurrentPosition(
+      desiredAccuracy: LocationAccuracy.high,
+      forceAndroidLocationManager: deviceBrand != "xiaomi" && deviceBrand != 'redmi'
+    );
+    // position = await locationClass.getLocation();
     print(position);
-    latitude = position!.latitude!.toStringAsFixed(8);
-    longitude = position!.longitude!.toStringAsFixed(8);
+    latitude = position!.latitude.toStringAsFixed(8);
+    longitude = position!.longitude.toStringAsFixed(8);
     setState(() {
       _locationMessage =
           "Latitud: " + latitude + "\nLongitud: " + longitude;
     });
-    locationClass.changeSettings(interval: 8000, distanceFilter: 15);
+    
   }
 
   _read() async {
@@ -104,10 +110,10 @@ class _HomeScreenState extends State<HomeScreen> {
     print('saved favorites');
   }
 
-  void _updateCurrentLocation(LocationData newPosition) async {
+  void _updateCurrentLocation(Position newPosition) {
     position = newPosition;
-    latitude = position!.latitude!.toStringAsFixed(8);
-    longitude = position!.longitude!.toStringAsFixed(8);
+    latitude = position!.latitude.toStringAsFixed(8);
+    longitude = position!.longitude.toStringAsFixed(8);
     setState(() {
       _locationMessage =
           "Latitud: " + latitude + "\nLongitud: " + longitude;
@@ -115,13 +121,12 @@ class _HomeScreenState extends State<HomeScreen> {
     _sendLocation();
   }
   void _sendLocation() {
-    // await _getPermission();
     print("Mensaje enviado");
     print(position);
     
     String msg = latitude + "," + longitude;
 
-    String datetime = DateFormat("yyyy-MM-dd,HH:mm:ss").format(DateTime.fromMillisecondsSinceEpoch(position!.time!.toInt()).toLocal());
+    String datetime = DateFormat("yyyy-MM-dd,HH:mm:ss").format(position!.timestamp!.toLocal());
     
     RawDatagramSocket.bind(InternetAddress.anyIPv4, 0)
         .then((RawDatagramSocket socket) {
@@ -131,13 +136,6 @@ class _HomeScreenState extends State<HomeScreen> {
             int.parse(port));
       });
     });
-
-    // RawDatagramSocket.bind(InternetAddress.anyIPv4, 0)
-    //     .then((RawDatagramSocket socket) {
-    //   print('Sending to {address}:${int.parse(port)}');
-    //   socket.send(utf8.encode(msg + "," + datetime), InternetAddress(address),
-    //       int.parse(port));
-    // });
   }
 
   void _pushFavorites() {
@@ -206,9 +204,14 @@ class _HomeScreenState extends State<HomeScreen> {
             _sending = true;
           });
           if (positionStream == null) {
-            final positionStream = locationClass.onLocationChanged;
+            final positionStream = Geolocator.getPositionStream(
+              desiredAccuracy: LocationAccuracy.bestForNavigation,
+              intervalDuration: Duration(seconds: 4),
+              distanceFilter: 15,
+              forceAndroidLocationManager: deviceBrand != "xiaomi" && deviceBrand != 'redmi'
+            );
             print(positionStream);
-            _positionStreamSubscription = positionStream.listen((LocationData newPosition) =>
+            _positionStreamSubscription = positionStream.listen((Position newPosition) =>
                 _updateCurrentLocation(newPosition));
           }
           else {
