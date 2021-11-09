@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:location_app/SelectBondedDevicePage.dart';
@@ -19,9 +21,11 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  String _locationMessage = "";
+  String _locationMessage = "Latitud:\nLongitud:\nHumedad:";
   String latitude = "";
   String longitude = "";
+  String humidityStr = "";
+  double humidity = 0;
   String address = "encuentrameapp.sytes.net";
   String port = "5000";
   String plate = "";
@@ -48,6 +52,12 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  @override
+  void dispose() {
+    super.dispose();
+    widget.connection!.finish();
+  }
+
   Future<void> initPlatformState() async {
     // Platform messages may fail, so we use a try/catch PlatformException.
     // If the widget was removed from the tree while the asynchronous platform
@@ -66,7 +76,22 @@ class _HomeScreenState extends State<HomeScreen> {
     latitude = position!.latitude.toStringAsFixed(8);
     longitude = position!.longitude.toStringAsFixed(8);
     setState(() {
-      _locationMessage = "Latitud: " + latitude + "\nLongitud: " + longitude;
+      _locationMessage = "Latitud: " + latitude + "\nLongitud: " + longitude + "\nHumedad: $humidity%";
+    });
+
+    widget.connection!.input!.listen((Uint8List data) {
+      String dataStr = ascii.decode(data);
+      humidityStr += dataStr;
+        if (dataStr.contains("\n")) {
+          humidity = double.parse(humidityStr);
+          setState(() {
+            _locationMessage = "Latitud: " + latitude + "\nLongitud: " + longitude + "\nHumedad: $humidity%";
+          });
+          humidityStr = '';
+        }
+        print('Data incoming: ${ascii.decode(data)}');
+    }).onDone(() {
+        print('Disconnected by remote request');
     });
   }
 
@@ -111,7 +136,7 @@ class _HomeScreenState extends State<HomeScreen> {
         .then((RawDatagramSocket socket) {
       InternetAddress.lookup(address).then((value) {
         print('Sending to ${address}:${int.parse(port)}');
-        socket.send(utf8.encode(msg + "," + datetime + "," + plate), value[0],
+        socket.send(utf8.encode(msg + "," + datetime + "," + plate + "," + humidity.toString()), value[0],
             int.parse(port));
       });
     });

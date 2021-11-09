@@ -6,12 +6,15 @@ import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart';
 import './BluetoothDeviceListEntry.dart';
 import 'HomeScreen.dart';
 
+import 'package:fluttertoast/fluttertoast.dart';
+
+
 class SelectBondedDevicePage extends StatefulWidget {
   /// If true, on page start there is performed discovery upon the bonded devices.
   /// Then, if they are not avaliable, they would be disabled from the selection.
   final bool allowSkip;
 
-  const SelectBondedDevicePage({this.allowSkip = true});
+  const SelectBondedDevicePage({this.allowSkip = false});
 
   @override
   _SelectBondedDevicePage createState() => new _SelectBondedDevicePage();
@@ -64,30 +67,30 @@ class _SelectBondedDevicePage extends State<SelectBondedDevicePage> {
       return actions;
   }
 
-  showAlertDialog(BuildContext context) {
-  // set up the button
-  Widget okButton = TextButton(
-    child: Text("OK"),
-    onPressed: () => Navigator.of(context).pop(),
-  );
+  showErrorDialog(BuildContext context) {
+    // set up the button
+    Widget okButton = TextButton(
+      child: Text("OK"),
+      onPressed: () => Navigator.of(context).pop(),
+    );
 
-  // set up the AlertDialog
-  AlertDialog alert = AlertDialog(
-    title: Text("Error en la conexión"),
-    content: Text("No fue posible conectarse al dispositivo, por favor intente de nuevo."),
-    actions: [
-      okButton,
-    ],
-  );
+    // set up the AlertDialog
+    AlertDialog alert = AlertDialog(
+      title: Text("Error en la conexión"),
+      content: Text("No fue posible conectarse al dispositivo, por favor intente de nuevo."),
+      actions: [
+        okButton,
+      ],
+    );
 
-  // show the dialog
-  showDialog(
-    context: context,
-    builder: (BuildContext context) {
-      return alert;
-    },
-  );
-}
+    // show the dialog
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return alert;
+      },
+    );
+  }
 
   @override
   void initState() {
@@ -119,7 +122,7 @@ class _SelectBondedDevicePage extends State<SelectBondedDevicePage> {
     List<BluetoothDeviceListEntry> list = devices
         .map((_device) => BluetoothDeviceListEntry(
               device: _device,
-              onTap: () {
+              onTap: _device.isConnected ? null : () {
                 BluetoothConnection.toAddress(_device.address).then((_connection) {
                   print('Connected to the device');
                   Navigator.pushReplacement(context,
@@ -127,7 +130,7 @@ class _SelectBondedDevicePage extends State<SelectBondedDevicePage> {
                 }).catchError((error) {
                   print('Cannot connect, exception occured');
                   print(error);
-                  showAlertDialog(context);
+                  showErrorDialog(context);
                 });
               },
             ))
